@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Communicator v6.3</title>
+    <title>Communicator v6.4</title>
     <style>
         /* --- 基本設定 --- */
         body {
@@ -147,7 +147,7 @@
             <div class="key-cell" data-key="2"><span class="phy-num">2</span><span class="func-name">や行</span><span class="func-sub">や ゆ よ</span></div>
             <div class="key-cell" data-key="3"><span class="phy-num">3</span><span class="func-name">ら行</span><span class="func-sub">らりるれろ</span></div>
             <div class="key-cell span-v highlight" data-key="Enter"><span class="phy-num">Ent</span><span class="func-name">送信</span><span class="func-sub">（文章完成）</span></div>
-            <div class="key-cell span-h" data-key="0"><span class="phy-num">0</span><span class="func-name">わ行</span><span class="func-sub">わ を ん ー</span></div>
+            <div class="key-cell span-h" data-key="0"><span class="phy-num">0</span><span class="func-name">わ行・長音符</span><span class="func-sub">わ を ん ー</span></div>
             <div class="key-cell action" data-key="."><span class="phy-num">.</span><span class="func-name">゛　゜</span><span class="func-sub">濁点・半濁点</span></div>
         </div>
     </div>
@@ -158,7 +158,6 @@
     // ==========================================
     const VOICE_RATE = 1.0;  
     const VOICE_PITCH = 1.0; 
-    // ★★★ GASのURL ★★★
     const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwhGDLHpVdOcUtc-Wm8TULRL0_667aFLOi1ILN7DR_AhcBimUFCQSQhYGAGyjWrfNIFzw/exec";
 
     // ==========================================
@@ -294,9 +293,18 @@
                 const cssClass = isSelf ? 'self' : 'other';
                 div.className = `history-item ${cssClass}`;
                 
+                // ★修正：履歴タップ時の読み上げフォーマット統一
                 div.onclick = () => {
-                    if(!isSelf) speak(item.sender + "さんからメッセージです。" + item.text);
-                    else speak(item.text);
+                    let senderName = item.sender;
+                    if(senderName.includes("正輝")) senderName = senderName.replace(/正輝/g, "まさき");
+                    
+                    if(!isSelf) {
+                        // 「〇〇さんからメッセージです。＜内容＞」
+                        speak(senderName + "さんからメッセージです。" + item.text);
+                    } else {
+                        // 自分の発言は本文のみ
+                        speak(item.text);
+                    }
                 };
                 
                 if(!isSelf) {
@@ -341,8 +349,10 @@
             if(json.status === 'success' && json.history) {
                 const hist = json.history;
                 
-                // 名前変換済みのデータがGASから来る
                 activeRoom.history = hist.map(h => {
+                    let senderName = h.sender;
+                    if(senderName.includes("正輝")) senderName = senderName.replace(/正輝/g, "まさき");
+                    
                     const dateObj = new Date(h.time);
                     const timeStr = dateObj.getHours() + ":" + String(dateObj.getMinutes()).padStart(2, '0');
                     const dateStr = dateObj.getFullYear() + "年" + (dateObj.getMonth()+1) + "月" + dateObj.getDate() + "日";
@@ -351,7 +361,7 @@
                         text: h.text,
                         time: timeStr,
                         date: dateStr,
-                        sender: h.sender
+                        sender: senderName
                     };
                 });
                 
@@ -371,14 +381,14 @@
 
                 if (isSilent) return;
 
-                if(hasNew) speak("新着メッセージがあります。");
-                
+                // ★修正：新着通知と本文を連結して、途切れず読み上げる
                 let readText = "";
+                if(hasNew) readText += "新着メッセージがあります。";
+                
                 activeRoom.history.forEach(h => { 
                     if(h.sender === "博之") {
                         readText += h.text + "。。"; 
                     } else {
-                        // ★修正: 受信読み上げ文言
                         readText += h.sender + "さんからメッセージです。" + h.text + "。。"; 
                     }
                 });
@@ -426,7 +436,6 @@
         if(startOverlay.style.display !== 'none') return;
         if(isKeyCheckMode) { explainKey(rawKey); return; }
 
-        // ★修正: 変換処理
         let virtualKey = keyMap[rawKey] || keyMap[rawKey.toString()];
 
         if (rawKey === 'NumLock' || virtualKey === 'NumLock') {
@@ -445,12 +454,7 @@
                 
                 if(activeRoomId !== 'room_board') {
                     speak(text + "。を送信しました");
-                    
-                    activeRoom.history.push({ 
-                        text: text, time: timeStr, date: dateStr, 
-                        sender: senderName 
-                    });
-                    
+                    activeRoom.history.push({ text: text, time: timeStr, date: dateStr, sender: senderName });
                     if(activeRoomId !== 'room_test') sendToLine(text, isTouch);
                     activeRoom.currentText = "";
                     renderHistory(); 

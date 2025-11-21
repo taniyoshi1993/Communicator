@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Communicator v6.1</title>
+    <style>
+        /* --- 基本設定 --- */
+        body {
+            font-family: "Hiragino Maru Gothic ProN", "Hiragino Kaku Gothic ProN", sans-serif;
+            background-color: #7297b8;
+            margin: 0;
+            padding: 0;
+            touch-action: manipulation; 
+            user-select: none;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: background-color 0.3s;
+        }
+        
+        /* 部屋ごとのテーマカラー */
+        body.theme-normal { background-color: #7297b8; } 
+        body.theme-board { background-color: #ffffff; }  
+        body.theme-test { background-color: #fff9c4; }   
+
+        /* --- タブエリア --- */
+        #tabs { display: flex; background-color: #e0e0e0; padding: 10px 5px 0 5px; height: 50px; flex-shrink: 0; overflow-x: auto; }
+        .tab { 
+            flex: 1; 
+            min-width: 60px; 
+            text-align: center; 
+            padding: 12px 2px; 
+            font-size: 15px; 
+            font-weight: bold; 
+            color: #666; 
+            background-color: #ccc; 
+            margin-right: 2px; 
+            border-radius: 8px 8px 0 0; 
+            cursor: pointer; 
+            transition: all 0.3s; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+        }
+        .tab.active { background-color: #fff; color: #007BFF; box-shadow: 0 -2px 5px rgba(0,0,0,0.1); z-index: 1; }
+        
+        .tab.tab-board.active { background-color: #fff; color: #333; border-top: 4px solid #333; }
+        .tab.tab-test.active { background-color: #fff9c4; color: #d4a017; border-top: 4px solid #d4a017; }
+
+        /* --- メインエリア --- */
+        #main-container { flex: 1; display: flex; flex-direction: column; padding: 10px 20px; background: transparent; overflow: hidden; position: relative; }
+        
+        /* 筆談モード時 */
+        body.theme-board #history-area, body.theme-board #key-guide { display: none; }
+        body.theme-board #display { 
+            height: auto; flex: 1; 
+            background-color: #fff; color: #000; 
+            border: none; font-size: 15vw; 
+            align-items: flex-start; padding-top: 50px;
+            line-height: 1.2;
+            box-shadow: none;
+        }
+
+        /* テストモード時 */
+        body.theme-test #display::after {
+            content: "※テストモード（送信されません）";
+            position: absolute; bottom: 5px; right: 10px;
+            font-size: 12px; color: #999;
+        }
+
+        /* 履歴表示エリア */
+        #history-area { flex: 1; overflow-y: auto; margin-bottom: 10px; padding-bottom: 10px; display: flex; flex-direction: column; }
+        
+        .history-item { 
+            font-size: 20px; margin: 4px 0; padding: 10px 14px; border-radius: 14px; color: #333; 
+            text-align: left; word-break: break-all; max-width: 80%; position: relative; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.1s; 
+            display: flex; flex-direction: column;
+        }
+        .history-item:active { transform: scale(0.98); filter: brightness(0.95); }
+        
+        /* 自分（博之）＝右・緑 */
+        .history-item.self { align-self: flex-end; background-color: #8de055; margin-left: auto; border-top-right-radius: 4px; }
+        
+        /* 相手（家族・アプリ）＝左・白 */
+        .history-item.other { align-self: flex-start; background-color: #ffffff; margin-right: auto; border-top-left-radius: 4px; }
+        
+        /* 送信者名表示（相手のみ） */
+        .history-sender { font-size: 10px; color: #666; margin-bottom: 2px; }
+        .history-item.self .history-sender { display: none; } /* 自分は名前非表示 */
+
+        .history-time { font-size: 11px; color: #555; align-self: flex-end; margin-top: 4px; opacity: 0.7; }
+        .date-separator { text-align: center; margin: 20px 0 10px 0; position: relative; }
+        .date-separator span { background-color: rgba(0,0,0,0.2); color: #fff; padding: 4px 12px; border-radius: 12px; font-size: 12px; }
+
+        /* 入力中の文字表示 */
+        #display { height: 100px; background-color: #fff; border: 4px solid #333; border-radius: 12px; font-size: 42px; font-weight: bold; padding: 10px; color: black; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); flex-shrink: 0; word-break: break-all; margin-bottom: 10px; position: relative; }
+        
+        /* 仮入力文字のスタイル */
+        .working-char {
+            color: #bbb;
+            border-bottom: 3px dotted #aaa;
+        }
+
+        /* --- キーガイドエリア --- */
+        #key-guide { height: auto; background-color: #2c3e50; padding: 15px 10px; flex-shrink: 0; display: flex; justify-content: center; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+        .tenkey-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%; max-width: 700px; }
+        .key-cell { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; position: relative; min-height: 55px; cursor: pointer; transition: background-color 0.1s, transform 0.1s; user-select: none; }
+        .key-cell:active { background-color: rgba(255,255,255,0.3); transform: scale(0.95); }
+        .key-cell.span-v { grid-row: span 2; }
+        .key-cell.span-h { grid-column: span 2; }
+        .key-cell.highlight { background: rgba(255, 200, 0, 0.15); border-color: rgba(255, 200, 0, 0.4); }
+        .key-cell.highlight:active { background: rgba(255, 200, 0, 0.4); }
+        .key-cell.action { background: rgba(0, 150, 255, 0.2); border-color: rgba(0, 150, 255, 0.4); }
+        .key-cell.action:active { background: rgba(0, 150, 255, 0.4); }
+        .phy-num { position: absolute; top: 4px; left: 8px; font-size: 11px; opacity: 0.7; font-family: monospace; font-weight: bold; }
+        .func-name { font-size: 18px; font-weight: bold; line-height: 1.1; text-align: center; white-space: nowrap; pointer-events: none; }
+        .func-sub { font-size: 12px; opacity: 0.9; margin-top: 4px; font-weight: normal; pointer-events: none; }
+        
+        #check-mode-btn { position: absolute; bottom: 130px; right: 10px; background-color: #666; color: white; border: 2px solid #fff; padding: 6px 12px; border-radius: 20px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.3); cursor: pointer; z-index: 100; font-size: 12px; }
+        #check-mode-btn.active { background-color: #ff4444; border-color: #ffcccc; animation: pulse 2s infinite; }
+        
+        #start-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 123, 255, 0.95); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="start-overlay">
+        <h2 style="font-size:48px; margin-bottom:20px;">画面をタップして開始</h2>
+        <p style="font-size:24px;">どこを押しても始まります</p>
+    </div>
+
+    <div id="tabs"></div>
+
+    <div id="main-container">
+        <div id="history-area">
+            <div style="color:#eee; text-align:center; margin-top:auto;">履歴がここに表示されます</div>
+        </div>
+        <div id="check-mode-btn">キー確認：OFF</div>
+        <div id="display">（入力待ち）</div>
+    </div>
+
+    <div id="key-guide">
+        <div class="tenkey-grid">
+            <div class="key-cell action" data-key="NumLock"><span class="phy-num">Num</span><span class="func-name">入力欄全消去</span></div>
+            <div class="key-cell action" data-key="/"><span class="phy-num">/</span><span class="func-name">1文字消去</span></div>
+            <div class="key-cell action" data-key="*"><span class="phy-num">*</span><span class="func-name">受信</span><span class="func-sub">メッセージ読込</span></div>
+            <div class="key-cell action" data-key="-"><span class="phy-num">-</span><span class="func-name">音声読上げ</span><span class="func-sub">確認</span></div>
+            <div class="key-cell" data-key="7"><span class="phy-num">7</span><span class="func-name">あ行</span><span class="func-sub">あいうえお</span></div>
+            <div class="key-cell" data-key="8"><span class="phy-num">8</span><span class="func-name">か行</span><span class="func-sub">かきくけこ</span></div>
+            <div class="key-cell" data-key="9"><span class="phy-num">9</span><span class="func-name">さ行</span><span class="func-sub">さしすせそ</span></div>
+            <div class="key-cell span-v highlight" data-key="+"><span class="phy-num">+</span><span class="func-name">次の文字へ</span><span class="func-sub">（文字確定）</span></div>
+            <div class="key-cell" data-key="4"><span class="phy-num">4</span><span class="func-name">た行</span><span class="func-sub">たちつてと</span></div>
+            <div class="key-cell" data-key="5"><span class="phy-num">5</span><span class="func-name">な行</span><span class="func-sub">なにぬねの</span></div>
+            <div class="key-cell" data-key="6"><span class="phy-num">6</span><span class="func-name">は行</span><span class="func-sub">はひふへほ</span></div>
+            <div class="key-cell" data-key="1"><span class="phy-num">1</span><span class="func-name">ま行</span><span class="func-sub">まみむめも</span></div>
+            <div class="key-cell" data-key="2"><span class="phy-num">2</span><span class="func-name">や行</span><span class="func-sub">や ゆ よ</span></div>
+            <div class="key-cell" data-key="3"><span class="phy-num">3</span><span class="func-name">ら行</span><span class="func-sub">らりるれろ</span></div>
+            <div class="key-cell span-v highlight" data-key="Enter"><span class="phy-num">Ent</span><span class="func-name">送信</span><span class="func-sub">（文章完成）</span></div>
+            <div class="key-cell span-h" data-key="0"><span class="phy-num">0</span><span class="func-name">わ行・長音符</span><span class="func-sub">わ を ん ー</span></div>
+            <div class="key-cell action" data-key="."><span class="phy-num">.</span><span class="func-name">゛　゜</span><span class="func-sub">濁点・半濁点</span></div>
+        </div>
+    </div>
+
+<script>
+    // ==========================================
+    // 設定エリア
+    // ==========================================
+    const VOICE_RATE = 1.0;  // 読み上げ速度
+    const VOICE_PITCH = 1.0; // 声の高さ
+    
+    // ★★★ GASのURL ★★★
+    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwhGDLHpVdOcUtc-Wm8TULRL0_667aFLOi1ILN7DR_AhcBimUFCQSQhYGAGyjWrfNIFzw/exec";
+
+    // ==========================================
+    // データ定義
+    // ==========================================
+    const roomsData = [
+        { id: 'room_main', name: '会話', reading: 'かいわ', history: [], currentText: '', workingChar: '' },
+        { id: 'room_todo', name: '用事', reading: 'ようじ', history: [], currentText: '', workingChar: '' },
+        { id: 'room_health', name: '体調', reading: 'たいちょう', history: [], currentText: '', workingChar: '' },
+        { id: 'room_board', name: '筆談', reading: 'ひつだん', history: [], currentText: '', workingChar: '' },
+        { id: 'room_test', name: 'テスト', reading: 'てすと', history: [], currentText: '', workingChar: '' },
+    ];
+    
+    let activeRoomId = 'room_main';
+    let activeRoom = roomsData[0];
+    let isKeyCheckMode = false;
+    let lastFetchedTime = 0;
+
+    const kanaTable = { 
+        '1': ['あ','い','う','え','お'], 
+        '2': ['か','き','く','け','こ'], 
+        '3': ['さ','し','す','せ','そ'], 
+        '4': ['た','ち','つ','て','と'], 
+        '5': ['な','に','ぬ','ね','の'], 
+        '6': ['は','ひ','ふ','へ','ほ'], 
+        '7': ['ま','み','む','め','も'], 
+        '8': ['や','ゆ','よ'], 
+        '9': ['ら','り','る','れ','ろ'], 
+        '0': ['わ','を','ん','ー'] 
+    };
+    const dakutenMap = { 'か':'が', 'き':'ぎ', 'く':'ぐ', 'け':'げ', 'こ':'ご', 'が':'か', 'ぎ':'き', 'ぐ':'く', 'げ':'け', 'ご':'こ', 'さ':'ざ', 'し':'じ', 'す':'ず', 'せ':'ぜ', 'そ':'ぞ', 'ざ':'さ', 'じ':'し', 'ず':'す', 'ぜ':'せ', 'ぞ':'そ', 'た':'だ', 'ち':'ぢ', 'つ':'づ', 'て':'で', 'と':'ど', 'だ':'た', 'ぢ':'ち', 'づ':'つ', 'で':'て', 'ど':'と', 'は':'ば', 'ひ':'び', 'ふ':'ぶ', 'へ':'べ', 'ほ':'ぼ', 'ば':'ぱ', 'び':'ぴ', 'ぶ':'ぷ', 'べ':'ぺ', 'ぼ':'ぽ', 'ぱ':'は', 'ぴ':'ひ', 'ぷ':'ふ', 'ぺ':'へ', 'ぽ':'ほ', 'う':'ヴ', 'ヴ':'う' };
+    // NumLock対応
+    const keyMap = { '7': '1', 'Home': '1', '8': '2', 'ArrowUp': '2', '9': '3', 'PageUp': '3', '4': '4', 'ArrowLeft': '4', '5': '5', 'Clear': 'NumLock', '6': '6', 'ArrowRight': '6', '1': '7', 'End': '7', '2': '8', 'ArrowDown': '8', '3': '9', 'PageDown': '9', '0': '0', 'Insert': '0', '.': 'dakuten', 'Delete': 'dakuten' };
+
+    let lastKey = null; let clickCount = 0; let synthesis = window.speechSynthesis;
+
+    function init() {
+        loadFromStorage(); renderTabs(); updateDisplay(); renderHistory(); setupTouchKeys(); setupCheckModeBtn();
+        fetchHistory(true);
+    }
+
+    function setupCheckModeBtn() {
+        const btn = document.getElementById('check-mode-btn');
+        btn.addEventListener('click', () => {
+            isKeyCheckMode = !isKeyCheckMode;
+            if (isKeyCheckMode) {
+                btn.textContent = "キー確認：ON"; btn.classList.add('active'); speak("キー確認モード、オン。キーを押すと説明します。");
+            } else {
+                btn.textContent = "キー確認：OFF"; btn.classList.remove('active'); speak("キー確認モード、オフ。");
+            }
+        });
+    }
+
+    function setupTouchKeys() {
+        const keys = document.querySelectorAll('.key-cell');
+        keys.forEach(keyEl => {
+            keyEl.addEventListener('click', (e) => {
+                e.preventDefault();
+                const keyVal = keyEl.getAttribute('data-key');
+                if(keyVal) handleInput(keyVal, true);
+            });
+        });
+    }
+
+    function renderTabs() {
+        const tabsContainer = document.getElementById('tabs');
+        tabsContainer.innerHTML = '';
+        roomsData.forEach(room => {
+            const tabEl = document.createElement('div');
+            tabEl.className = `tab ${room.id === activeRoomId ? 'active' : ''}`;
+            if(room.id === 'room_board') tabEl.classList.add('board-mode');
+            if(room.id === 'room_test') tabEl.classList.add('tab-test');
+            
+            tabEl.textContent = room.name;
+            tabEl.onclick = () => switchRoom(room.id);
+            tabsContainer.appendChild(tabEl);
+        });
+    }
+
+    function switchRoom(roomId) {
+        saveToStorage(); activeRoomId = roomId; activeRoom = roomsData.find(r => r.id === roomId);
+        
+        document.body.classList.remove('theme-normal', 'theme-board', 'theme-test');
+        if(roomId === 'room_board') document.body.classList.add('theme-board');
+        else if(roomId === 'room_test') document.body.classList.add('theme-test');
+        else document.body.classList.add('theme-normal');
+
+        renderTabs(); updateDisplay(); renderHistory(); lastKey = null; clickCount = 0;
+        speak(activeRoom.reading + "、です");
+    }
+
+    function speak(text) {
+        if(!synthesis) return;
+        synthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'ja-JP'; utter.rate = VOICE_RATE; utter.pitch = VOICE_PITCH;
+        synthesis.speak(utter);
+    }
+
+    function updateDisplay() {
+        const displayDiv = document.getElementById('display');
+        
+        if (!activeRoom.currentText && !activeRoom.workingChar) { 
+            displayDiv.textContent = "（" + activeRoom.name + "：入力待ち）"; 
+            displayDiv.style.color = activeRoomId==='room_board' ? '#999' : '#ccc'; 
+        } else { 
+            let html = activeRoom.currentText; 
+            if (activeRoom.workingChar) {
+                html += '<span class="working-char">' + activeRoom.workingChar + '</span>';
+            }
+            displayDiv.innerHTML = html;
+            displayDiv.style.color = 'black'; 
+        } 
+        saveToStorage();
+    }
+
+    function renderHistory() {
+        if(activeRoomId === 'room_board') return;
+        const area = document.getElementById('history-area');
+        area.innerHTML = '';
+        let lastDate = null;
+        if (activeRoom.history.length === 0) {} else {
+            const topSpacer = document.createElement('div'); topSpacer.style.marginTop = "auto"; area.appendChild(topSpacer);
+            activeRoom.history.forEach(item => {
+                const itemDate = item.date || "---";
+                if (item.date && itemDate !== lastDate) {
+                    const dateSep = document.createElement('div'); dateSep.className = 'date-separator';
+                    const span = document.createElement('span'); span.textContent = itemDate;
+                    dateSep.appendChild(span); area.appendChild(dateSep); lastDate = itemDate;
+                }
+                
+                // 吹き出し生成
+                const div = document.createElement('div');
+                
+                // ★自分(博之)は右(self/緑)、それ以外(家族・アプリ)は左(other/白)
+                const isSelf = (item.sender === "博之");
+                const cssClass = isSelf ? 'self' : 'other';
+                div.className = `history-item ${cssClass}`;
+                
+                // タップで読み上げ
+                div.onclick = () => {
+                    let senderName = item.sender;
+                    if(senderName.includes("正輝")) senderName = senderName.replace(/正輝/g, "まさき");
+                    // 自分以外の発言は名前付きで読む
+                    if(!isSelf) speak(senderName + "さんから、「" + item.text + "」。");
+                    else speak(item.text);
+                };
+                
+                // 名前表示（相手のみ）
+                if(!isSelf) {
+                    const spanSender = document.createElement('span');
+                    spanSender.className = 'history-sender';
+                    spanSender.textContent = item.sender;
+                    div.appendChild(spanSender);
+                }
+
+                const spanText = document.createElement('span'); 
+                spanText.textContent = item.text;
+                
+                const spanTime = document.createElement('span'); 
+                spanTime.className = 'history-time'; 
+                spanTime.textContent = item.time;
+                
+                div.appendChild(spanText); 
+                div.appendChild(spanTime); 
+                area.appendChild(div);
+            });
+        }
+        area.scrollTop = area.scrollHeight;
+    }
+    
+    async function sendToLine(text, isTouch) {
+        if (activeRoomId === 'room_board' || activeRoomId === 'room_test') return;
+        const senderName = isTouch ? "アプリ" : "博之";
+        const roomName = activeRoom.name;
+        try {
+            await fetch(GAS_API_URL, {
+                method: 'POST', mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text, sender: senderName, room: roomName })
+            });
+        } catch (e) { console.error(e); }
+    }
+
+    async function fetchHistory(isSilent = false) {
+        try {
+            if(!isSilent) speak("受信を確認しています");
+            const res = await fetch(GAS_API_URL);
+            const json = await res.json();
+            if(json.status === 'success' && json.history) {
+                const hist = json.history;
+                
+                // ★サーバーデータをローカル履歴に反映
+                activeRoom.history = hist.map(h => {
+                    let senderName = h.sender;
+                    // 名前補正(正輝 -> まさき)
+                    if(senderName.includes("正輝")) senderName = senderName.replace(/正輝/g, "まさき");
+                    
+                    // 日時変換
+                    const dateObj = new Date(h.time);
+                    const timeStr = dateObj.getHours() + ":" + String(dateObj.getMinutes()).padStart(2, '0');
+                    const dateStr = dateObj.getFullYear() + "年" + (dateObj.getMonth()+1) + "月" + dateObj.getDate() + "日";
+                    
+                    return {
+                        text: h.text,
+                        time: timeStr,
+                        date: dateStr,
+                        sender: senderName
+                    };
+                });
+                
+                // 新着チェック
+                let hasNew = false;
+                let latestTime = lastFetchedTime;
+                if (hist.length > 0) {
+                    const lastItem = hist[hist.length - 1];
+                    if (lastItem.time > lastFetchedTime) {
+                        hasNew = true;
+                        latestTime = lastItem.time;
+                    }
+                }
+                lastFetchedTime = latestTime;
+                localStorage.setItem('comm_last_fetch_time', lastFetchedTime);
+
+                // 画面更新
+                renderHistory();
+
+                if (isSilent) return;
+
+                if(hasNew) speak("新着メッセージがあります。");
+                
+                // 読み上げ
+                let readText = "";
+                activeRoom.history.forEach(h => { 
+                    if(h.sender === "博之") {
+                        // 自分の発言は本文だけ
+                        readText += h.text + "。。"; 
+                    } else {
+                        // 相手の発言は名前付き
+                        readText += h.sender + "さんから、「" + h.text + "」。"; 
+                    }
+                });
+                speak(readText);
+                
+            } else {
+                if(!isSilent) speak("受信できませんでした");
+            }
+        } catch (e) {
+            console.error(e);
+            if(!isSilent) speak("通信エラーです");
+        }
+    }
+
+    function commitChar() {
+        if (activeRoom.workingChar) {
+            activeRoom.currentText += activeRoom.workingChar; activeRoom.workingChar = "";
+            clickCount = 0; lastKey = null; saveToStorage();
+        }
+    }
+    function saveToStorage() { localStorage.setItem('comm_data_v5', JSON.stringify(roomsData)); localStorage.setItem('comm_room_v5', activeRoomId); }
+    function loadFromStorage() {
+        const savedData = localStorage.getItem('comm_data_v5'); const savedRoom = localStorage.getItem('comm_room_v5');
+        const savedTime = localStorage.getItem('comm_last_fetch_time');
+        if(savedTime) lastFetchedTime = parseInt(savedTime);
+        if (savedData) { try { const parsed = JSON.parse(savedData); parsed.forEach(pRoom => { const target = roomsData.find(r => r.id === pRoom.id); if(target) { target.history = pRoom.history || []; target.currentText = pRoom.currentText || ''; } }); } catch(e) {} }
+        if (savedRoom) { const target = roomsData.find(r => r.id === savedRoom); if(target) { activeRoomId = savedRoom; activeRoom = target; } }
+    }
+
+    function explainKey(rawKey) {
+        if(rawKey === 'NumLock') { speak("入力欄全消去です"); return; }
+        if(rawKey === '/') { speak("一文字消去です"); return; }
+        if(rawKey === '*') { speak("受信ボタンです"); return; }
+        if(rawKey === '-') { speak("音声読み上げです"); return; }
+        if(rawKey === '+') { speak("次の文字へ進みます"); return; }
+        if(rawKey === 'Enter') { speak("送信です"); return; }
+        if(rawKey === '.') { speak("だくてん、はんだくてんです"); return; } 
+        let virtualKey = keyMap[rawKey] || keyMap[rawKey.toString()];
+        if (!virtualKey) return;
+        if(virtualKey === '0') { speak("わぎょうです"); return; }
+        if(kanaTable[virtualKey]) { const rowName = kanaTable[virtualKey][0]; speak(rowName + "ぎょうです"); }
+    }
+
+    function handleInput(rawKey, isTouch = false) {
+        if(startOverlay.style.display !== 'none') return;
+        if(isKeyCheckMode) { explainKey(rawKey); return; }
+
+        // ★修正: 変換処理
+        let virtualKey = keyMap[rawKey] || keyMap[rawKey.toString()];
+
+        if (rawKey === 'NumLock' || virtualKey === 'NumLock') {
+            activeRoom.currentText = ""; activeRoom.workingChar = ""; lastKey = null; clickCount = 0;
+            speak("入力欄をリセットしました"); updateDisplay(); return;
+        }
+
+        if (rawKey === 'Enter' || virtualKey === 'Enter') {
+            commitChar();
+            if(activeRoom.currentText.length > 0){
+                const text = activeRoom.currentText;
+                const now = new Date();
+                const timeStr = now.getHours() + ":" + String(now.getMinutes()).padStart(2, '0');
+                const dateStr = now.getFullYear() + "年" + (now.getMonth()+1) + "月" + now.getDate() + "日";
+                const senderName = isTouch ? "アプリ" : "博之";
+                
+                if(activeRoomId !== 'room_board') {
+                    speak(text + "。を送信しました");
+                    
+                    // 送信時はローカル履歴に即座に追加(sender情報付き)
+                    activeRoom.history.push({ 
+                        text: text, 
+                        time: timeStr, 
+                        date: dateStr, 
+                        sender: senderName
+                    });
+                    
+                    if(activeRoomId !== 'room_test') sendToLine(text, isTouch);
+                    activeRoom.currentText = "";
+                    renderHistory(); 
+                } else {
+                    speak(text + "、を表示しました");
+                }
+                updateDisplay();
+            } else { speak("入力欄が空です"); }
+            return;
+        }
+        if (rawKey === '*' || virtualKey === '*') { fetchHistory(); return; }
+        if (rawKey === '+' || virtualKey === '+') {
+            if (activeRoom.workingChar) { commitChar(); speak("現在の文字を確定しました"); updateDisplay(); }
+            else { speak("未確定の文字はありません"); } return;
+        }
+        if (rawKey === '/' || virtualKey === '/') {
+            if (activeRoom.workingChar) { activeRoom.workingChar = ""; speak("１文字消去しました"); }
+            else if (activeRoom.currentText.length > 0) { activeRoom.currentText = activeRoom.currentText.slice(0, -1); speak("１文字消去しました"); }
+            else { speak("入力欄が空です"); } clickCount = 0; lastKey = null; updateDisplay(); return;
+        }
+        if (rawKey === '-' || virtualKey === '-') {
+            let msg = activeRoom.currentText; if(activeRoom.workingChar) msg += "、" + activeRoom.workingChar;
+            if(!msg) msg = "入力欄が空です"; speak(msg); return;
+        }
+        
+        if (!virtualKey) return;
+        
+        if (virtualKey === 'dakuten') {
+            let targetChar = activeRoom.workingChar; let isWorking = true;
+            if (!targetChar && activeRoom.currentText.length > 0) { targetChar = activeRoom.currentText.slice(-1); isWorking = false; }
+            if (targetChar && dakutenMap[targetChar]) {
+                const newChar = dakutenMap[targetChar];
+                if (isWorking) activeRoom.workingChar = newChar; else activeRoom.currentText = activeRoom.currentText.slice(0, -1) + newChar;
+                speak(newChar); updateDisplay();
+            } else { speak("濁点がつけられません"); } return;
+        }
+        if (kanaTable[virtualKey]) {
+            if (lastKey !== virtualKey && lastKey !== 'dakuten') { commitChar(); }
+            if (lastKey === 'dakuten') { commitChar(); }
+            if (lastKey === virtualKey) { clickCount++; } else { clickCount = 0; }
+            const chars = kanaTable[virtualKey];
+            activeRoom.workingChar = chars[clickCount % chars.length];
+            speak(activeRoom.workingChar); lastKey = virtualKey; updateDisplay();
+        }
+    }
+
+    document.addEventListener('keydown', (event) => {
+        const rawKey = event.key;
+        if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(rawKey)) { event.preventDefault(); }
+        handleInput(rawKey, false);
+    });
+    
+    const startOverlay = document.getElementById('start-overlay');
+    startOverlay.addEventListener('click', () => { 
+        speak("準備完了。" + activeRoom.reading + "、です。"); 
+        startOverlay.style.display = 'none'; 
+        init(); 
+    });
+</script>
+</body>
+</html>

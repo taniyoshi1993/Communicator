@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Communicator v6.1</title>
+    <title>Communicator v6.3</title>
     <style>
         /* --- 基本設定 --- */
         body {
@@ -72,26 +72,14 @@
 
         /* 履歴表示エリア */
         #history-area { flex: 1; overflow-y: auto; margin-bottom: 10px; padding-bottom: 10px; display: flex; flex-direction: column; }
-        
-        .history-item { 
-            font-size: 20px; margin: 4px 0; padding: 10px 14px; border-radius: 14px; color: #333; 
-            text-align: left; word-break: break-all; max-width: 80%; position: relative; 
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.1s; 
-            display: flex; flex-direction: column;
-        }
+        .history-item { font-size: 20px; margin: 4px 0; padding: 10px 14px; border-radius: 14px; color: #333; text-align: left; word-break: break-all; max-width: 80%; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.1s; }
         .history-item:active { transform: scale(0.98); filter: brightness(0.95); }
-        
-        /* 自分（博之）＝右・緑 */
         .history-item.self { align-self: flex-end; background-color: #8de055; margin-left: auto; border-top-right-radius: 4px; }
-        
-        /* 相手（家族・アプリ）＝左・白 */
         .history-item.other { align-self: flex-start; background-color: #ffffff; margin-right: auto; border-top-left-radius: 4px; }
-        
-        /* 送信者名表示（相手のみ） */
         .history-sender { font-size: 10px; color: #666; margin-bottom: 2px; }
-        .history-item.self .history-sender { display: none; } /* 自分は名前非表示 */
+        .history-item.self .history-sender { display: none; } 
 
-        .history-time { font-size: 11px; color: #555; align-self: flex-end; margin-top: 4px; opacity: 0.7; }
+        .history-time { font-size: 11px; color: #555; margin-left: 8px; float: right; margin-top: 8px; opacity: 0.7; }
         .date-separator { text-align: center; margin: 20px 0 10px 0; position: relative; }
         .date-separator span { background-color: rgba(0,0,0,0.2); color: #fff; padding: 4px 12px; border-radius: 12px; font-size: 12px; }
 
@@ -168,9 +156,8 @@
     // ==========================================
     // 設定エリア
     // ==========================================
-    const VOICE_RATE = 1.0;  // 読み上げ速度
-    const VOICE_PITCH = 1.0; // 声の高さ
-    
+    const VOICE_RATE = 1.0;  
+    const VOICE_PITCH = 1.0; 
     // ★★★ GASのURL ★★★
     const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwhGDLHpVdOcUtc-Wm8TULRL0_667aFLOi1ILN7DR_AhcBimUFCQSQhYGAGyjWrfNIFzw/exec";
 
@@ -203,7 +190,6 @@
         '0': ['わ','を','ん','ー'] 
     };
     const dakutenMap = { 'か':'が', 'き':'ぎ', 'く':'ぐ', 'け':'げ', 'こ':'ご', 'が':'か', 'ぎ':'き', 'ぐ':'く', 'げ':'け', 'ご':'こ', 'さ':'ざ', 'し':'じ', 'す':'ず', 'せ':'ぜ', 'そ':'ぞ', 'ざ':'さ', 'じ':'し', 'ず':'す', 'ぜ':'せ', 'ぞ':'そ', 'た':'だ', 'ち':'ぢ', 'つ':'づ', 'て':'で', 'と':'ど', 'だ':'た', 'ぢ':'ち', 'づ':'つ', 'で':'て', 'ど':'と', 'は':'ば', 'ひ':'び', 'ふ':'ぶ', 'へ':'べ', 'ほ':'ぼ', 'ば':'ぱ', 'び':'ぴ', 'ぶ':'ぷ', 'べ':'ぺ', 'ぼ':'ぽ', 'ぱ':'は', 'ぴ':'ひ', 'ぷ':'ふ', 'ぺ':'へ', 'ぽ':'ほ', 'う':'ヴ', 'ヴ':'う' };
-    // NumLock対応
     const keyMap = { '7': '1', 'Home': '1', '8': '2', 'ArrowUp': '2', '9': '3', 'PageUp': '3', '4': '4', 'ArrowLeft': '4', '5': '5', 'Clear': 'NumLock', '6': '6', 'ArrowRight': '6', '1': '7', 'End': '7', '2': '8', 'ArrowDown': '8', '3': '9', 'PageDown': '9', '0': '0', 'Insert': '0', '.': 'dakuten', 'Delete': 'dakuten' };
 
     let lastKey = null; let clickCount = 0; let synthesis = window.speechSynthesis;
@@ -303,24 +289,16 @@
                     dateSep.appendChild(span); area.appendChild(dateSep); lastDate = itemDate;
                 }
                 
-                // 吹き出し生成
                 const div = document.createElement('div');
-                
-                // ★自分(博之)は右(self/緑)、それ以外(家族・アプリ)は左(other/白)
                 const isSelf = (item.sender === "博之");
                 const cssClass = isSelf ? 'self' : 'other';
                 div.className = `history-item ${cssClass}`;
                 
-                // タップで読み上げ
                 div.onclick = () => {
-                    let senderName = item.sender;
-                    if(senderName.includes("正輝")) senderName = senderName.replace(/正輝/g, "まさき");
-                    // 自分以外の発言は名前付きで読む
-                    if(!isSelf) speak(senderName + "さんから、「" + item.text + "」。");
+                    if(!isSelf) speak(item.sender + "さんからメッセージです。" + item.text);
                     else speak(item.text);
                 };
                 
-                // 名前表示（相手のみ）
                 if(!isSelf) {
                     const spanSender = document.createElement('span');
                     spanSender.className = 'history-sender';
@@ -330,14 +308,10 @@
 
                 const spanText = document.createElement('span'); 
                 spanText.textContent = item.text;
-                
                 const spanTime = document.createElement('span'); 
                 spanTime.className = 'history-time'; 
                 spanTime.textContent = item.time;
-                
-                div.appendChild(spanText); 
-                div.appendChild(spanTime); 
-                area.appendChild(div);
+                div.appendChild(spanText); div.appendChild(spanTime); area.appendChild(div);
             });
         }
         area.scrollTop = area.scrollHeight;
@@ -359,18 +333,16 @@
     async function fetchHistory(isSilent = false) {
         try {
             if(!isSilent) speak("受信を確認しています");
-            const res = await fetch(GAS_API_URL);
+            
+            const urlWithParams = GAS_API_URL + "?room=" + encodeURIComponent(activeRoom.name);
+            
+            const res = await fetch(urlWithParams);
             const json = await res.json();
             if(json.status === 'success' && json.history) {
                 const hist = json.history;
                 
-                // ★サーバーデータをローカル履歴に反映
+                // 名前変換済みのデータがGASから来る
                 activeRoom.history = hist.map(h => {
-                    let senderName = h.sender;
-                    // 名前補正(正輝 -> まさき)
-                    if(senderName.includes("正輝")) senderName = senderName.replace(/正輝/g, "まさき");
-                    
-                    // 日時変換
                     const dateObj = new Date(h.time);
                     const timeStr = dateObj.getHours() + ":" + String(dateObj.getMinutes()).padStart(2, '0');
                     const dateStr = dateObj.getFullYear() + "年" + (dateObj.getMonth()+1) + "月" + dateObj.getDate() + "日";
@@ -379,11 +351,10 @@
                         text: h.text,
                         time: timeStr,
                         date: dateStr,
-                        sender: senderName
+                        sender: h.sender
                     };
                 });
                 
-                // 新着チェック
                 let hasNew = false;
                 let latestTime = lastFetchedTime;
                 if (hist.length > 0) {
@@ -396,22 +367,19 @@
                 lastFetchedTime = latestTime;
                 localStorage.setItem('comm_last_fetch_time', lastFetchedTime);
 
-                // 画面更新
                 renderHistory();
 
                 if (isSilent) return;
 
                 if(hasNew) speak("新着メッセージがあります。");
                 
-                // 読み上げ
                 let readText = "";
                 activeRoom.history.forEach(h => { 
                     if(h.sender === "博之") {
-                        // 自分の発言は本文だけ
                         readText += h.text + "。。"; 
                     } else {
-                        // 相手の発言は名前付き
-                        readText += h.sender + "さんから、「" + h.text + "」。"; 
+                        // ★修正: 受信読み上げ文言
+                        readText += h.sender + "さんからメッセージです。" + h.text + "。。"; 
                     }
                 });
                 speak(readText);
@@ -478,12 +446,9 @@
                 if(activeRoomId !== 'room_board') {
                     speak(text + "。を送信しました");
                     
-                    // 送信時はローカル履歴に即座に追加(sender情報付き)
                     activeRoom.history.push({ 
-                        text: text, 
-                        time: timeStr, 
-                        date: dateStr, 
-                        sender: senderName
+                        text: text, time: timeStr, date: dateStr, 
+                        sender: senderName 
                     });
                     
                     if(activeRoomId !== 'room_test') sendToLine(text, isTouch);

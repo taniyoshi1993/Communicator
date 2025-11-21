@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Communicator v6.4</title>
+    <title>Communicator v6.5</title>
     <style>
         /* --- 基本設定 --- */
         body {
@@ -110,6 +110,9 @@
         #check-mode-btn { position: absolute; bottom: 130px; right: 10px; background-color: #666; color: white; border: 2px solid #fff; padding: 6px 12px; border-radius: 20px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.3); cursor: pointer; z-index: 100; font-size: 12px; }
         #check-mode-btn.active { background-color: #ff4444; border-color: #ffcccc; animation: pulse 2s infinite; }
         
+        /* バージョン表示 */
+        #version-label { position: absolute; bottom: 5px; right: 5px; color: rgba(255,255,255,0.3); font-size: 10px; }
+
         #start-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 123, 255, 0.95); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; cursor: pointer; }
     </style>
 </head>
@@ -150,14 +153,17 @@
             <div class="key-cell span-h" data-key="0"><span class="phy-num">0</span><span class="func-name">わ行・長音符</span><span class="func-sub">わ を ん ー</span></div>
             <div class="key-cell action" data-key="."><span class="phy-num">.</span><span class="func-name">゛　゜</span><span class="func-sub">濁点・半濁点</span></div>
         </div>
+        <div id="version-label">v6.5</div>
     </div>
 
 <script>
     // ==========================================
     // 設定エリア
     // ==========================================
-    const VOICE_RATE = 1.0;  
-    const VOICE_PITCH = 1.0; 
+    const VOICE_RATE = 1.0;  // 読み上げ速度
+    const VOICE_PITCH = 1.0; // 声の高さ
+    
+    // ★★★ GASのURL ★★★
     const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwhGDLHpVdOcUtc-Wm8TULRL0_667aFLOi1ILN7DR_AhcBimUFCQSQhYGAGyjWrfNIFzw/exec";
 
     // ==========================================
@@ -192,10 +198,58 @@
     const keyMap = { '7': '1', 'Home': '1', '8': '2', 'ArrowUp': '2', '9': '3', 'PageUp': '3', '4': '4', 'ArrowLeft': '4', '5': '5', 'Clear': 'NumLock', '6': '6', 'ArrowRight': '6', '1': '7', 'End': '7', '2': '8', 'ArrowDown': '8', '3': '9', 'PageDown': '9', '0': '0', 'Insert': '0', '.': 'dakuten', 'Delete': 'dakuten' };
 
     let lastKey = null; let clickCount = 0; let synthesis = window.speechSynthesis;
+    let audioCtx = null;
+
+    function initAudio() {
+        try {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.value = 440; 
+            gain.gain.value = 0.0001; // 無音
+            osc.start(0);
+            osc.stop(0.1);
+        } catch(e) { console.error("Audio Init Failed:", e); }
+    }
 
     function init() {
         loadFromStorage(); renderTabs(); updateDisplay(); renderHistory(); setupTouchKeys(); setupCheckModeBtn();
         fetchHistory(true);
+    }
+
+    // 効果音 (シンプル版)
+    function playSound(type) {
+        if (!audioCtx) return;
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume().catch(e => console.error(e));
+        }
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        const now = audioCtx.currentTime;
+        
+        if (type === 'input') { 
+            osc.type = 'sine'; osc.frequency.setValueAtTime(880, now); gain.gain.setValueAtTime(0.1, now);
+            osc.start(now); osc.stop(now + 0.05);
+        } else if (type === 'delete') { 
+            osc.type = 'triangle'; osc.frequency.setValueAtTime(220, now); gain.gain.setValueAtTime(0.1, now);
+            osc.start(now); osc.stop(now + 0.05);
+        } else if (type === 'success') { 
+            osc.type = 'sine'; osc.frequency.setValueAtTime(660, now); osc.frequency.linearRampToValueAtTime(1320, now + 0.15);
+            gain.gain.setValueAtTime(0.1, now); osc.start(now); osc.stop(now + 0.3);
+        } else if (type === 'error') { 
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); gain.gain.setValueAtTime(0.1, now);
+            osc.start(now); osc.stop(now + 0.15);
+        }
     }
 
     function setupCheckModeBtn() {
@@ -218,6 +272,9 @@
                 const keyVal = keyEl.getAttribute('data-key');
                 if(keyVal) handleInput(keyVal, true);
             });
+            keyEl.addEventListener('touchstart', () => {
+                if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            }, {passive: true});
         });
     }
 
@@ -238,12 +295,10 @@
 
     function switchRoom(roomId) {
         saveToStorage(); activeRoomId = roomId; activeRoom = roomsData.find(r => r.id === roomId);
-        
         document.body.classList.remove('theme-normal', 'theme-board', 'theme-test');
         if(roomId === 'room_board') document.body.classList.add('theme-board');
         else if(roomId === 'room_test') document.body.classList.add('theme-test');
         else document.body.classList.add('theme-normal');
-
         renderTabs(); updateDisplay(); renderHistory(); lastKey = null; clickCount = 0;
         speak(activeRoom.reading + "、です");
     }
@@ -258,7 +313,6 @@
 
     function updateDisplay() {
         const displayDiv = document.getElementById('display');
-        
         if (!activeRoom.currentText && !activeRoom.workingChar) { 
             displayDiv.textContent = "（" + activeRoom.name + "：入力待ち）"; 
             displayDiv.style.color = activeRoomId==='room_board' ? '#999' : '#ccc'; 
@@ -293,16 +347,13 @@
                 const cssClass = isSelf ? 'self' : 'other';
                 div.className = `history-item ${cssClass}`;
                 
-                // ★修正：履歴タップ時の読み上げフォーマット統一
+                // ★修正：履歴タップ時の読み上げ
                 div.onclick = () => {
-                    let senderName = item.sender;
-                    if(senderName.includes("正輝")) senderName = senderName.replace(/正輝/g, "まさき");
-                    
                     if(!isSelf) {
-                        // 「〇〇さんからメッセージです。＜内容＞」
-                        speak(senderName + "さんからメッセージです。" + item.text);
+                        // 相手の場合
+                        speak(item.sender + "さんからメッセージです。" + item.text);
                     } else {
-                        // 自分の発言は本文のみ
+                        // 自分の場合
                         speak(item.text);
                     }
                 };
@@ -314,11 +365,8 @@
                     div.appendChild(spanSender);
                 }
 
-                const spanText = document.createElement('span'); 
-                spanText.textContent = item.text;
-                const spanTime = document.createElement('span'); 
-                spanTime.className = 'history-time'; 
-                spanTime.textContent = item.time;
+                const spanText = document.createElement('span'); spanText.textContent = item.text;
+                const spanTime = document.createElement('span'); spanTime.className = 'history-time'; spanTime.textContent = item.time;
                 div.appendChild(spanText); div.appendChild(spanTime); area.appendChild(div);
             });
         }
@@ -350,19 +398,12 @@
                 const hist = json.history;
                 
                 activeRoom.history = hist.map(h => {
-                    let senderName = h.sender;
-                    if(senderName.includes("正輝")) senderName = senderName.replace(/正輝/g, "まさき");
-                    
+                    // GAS側で名前変換済みのデータが来るのでそのまま使用
                     const dateObj = new Date(h.time);
                     const timeStr = dateObj.getHours() + ":" + String(dateObj.getMinutes()).padStart(2, '0');
                     const dateStr = dateObj.getFullYear() + "年" + (dateObj.getMonth()+1) + "月" + dateObj.getDate() + "日";
                     
-                    return {
-                        text: h.text,
-                        time: timeStr,
-                        date: dateStr,
-                        sender: senderName
-                    };
+                    return { text: h.text, time: timeStr, date: dateStr, sender: h.sender };
                 });
                 
                 let hasNew = false;
@@ -381,7 +422,6 @@
 
                 if (isSilent) return;
 
-                // ★修正：新着通知と本文を連結して、途切れず読み上げる
                 let readText = "";
                 if(hasNew) readText += "新着メッセージがあります。";
                 
@@ -389,17 +429,18 @@
                     if(h.sender === "博之") {
                         readText += h.text + "。。"; 
                     } else {
+                        // ★修正：一括読み上げ時の文言
                         readText += h.sender + "さんからメッセージです。" + h.text + "。。"; 
                     }
                 });
                 speak(readText);
-                
+                playSound('success'); 
             } else {
-                if(!isSilent) speak("受信できませんでした");
+                if(!isSilent) { speak("受信できませんでした"); playSound('error'); }
             }
         } catch (e) {
             console.error(e);
-            if(!isSilent) speak("通信エラーです");
+            if(!isSilent) { speak("通信エラーです"); playSound('error'); }
         }
     }
 
@@ -440,7 +481,9 @@
 
         if (rawKey === 'NumLock' || virtualKey === 'NumLock') {
             activeRoom.currentText = ""; activeRoom.workingChar = ""; lastKey = null; clickCount = 0;
-            speak("入力欄をリセットしました"); updateDisplay(); return;
+            speak("入力欄をリセットしました"); 
+            playSound('delete');
+            updateDisplay(); return;
         }
 
         if (rawKey === 'Enter' || virtualKey === 'Enter') {
@@ -454,26 +497,50 @@
                 
                 if(activeRoomId !== 'room_board') {
                     speak(text + "。を送信しました");
+                    playSound('success'); 
                     activeRoom.history.push({ text: text, time: timeStr, date: dateStr, sender: senderName });
                     if(activeRoomId !== 'room_test') sendToLine(text, isTouch);
                     activeRoom.currentText = "";
                     renderHistory(); 
                 } else {
                     speak(text + "、を表示しました");
+                    playSound('success');
                 }
                 updateDisplay();
-            } else { speak("入力欄が空です"); }
+            } else { 
+                speak("入力欄が空です"); 
+                playSound('error');
+            }
             return;
         }
         if (rawKey === '*' || virtualKey === '*') { fetchHistory(); return; }
         if (rawKey === '+' || virtualKey === '+') {
-            if (activeRoom.workingChar) { commitChar(); speak("現在の文字を確定しました"); updateDisplay(); }
-            else { speak("未確定の文字はありません"); } return;
+            if (activeRoom.workingChar) { 
+                commitChar(); 
+                speak("現在の文字を確定しました"); 
+                playSound('success'); 
+                updateDisplay(); 
+            }
+            else { 
+                speak("未確定の文字はありません"); 
+                playSound('error');
+            } return;
         }
         if (rawKey === '/' || virtualKey === '/') {
-            if (activeRoom.workingChar) { activeRoom.workingChar = ""; speak("１文字消去しました"); }
-            else if (activeRoom.currentText.length > 0) { activeRoom.currentText = activeRoom.currentText.slice(0, -1); speak("１文字消去しました"); }
-            else { speak("入力欄が空です"); } clickCount = 0; lastKey = null; updateDisplay(); return;
+            if (activeRoom.workingChar) { 
+                activeRoom.workingChar = ""; 
+                speak("１文字消去しました"); 
+                playSound('delete');
+            }
+            else if (activeRoom.currentText.length > 0) { 
+                activeRoom.currentText = activeRoom.currentText.slice(0, -1); 
+                speak("１文字消去しました"); 
+                playSound('delete');
+            }
+            else { 
+                speak("入力欄が空です"); 
+                playSound('error');
+            } clickCount = 0; lastKey = null; updateDisplay(); return;
         }
         if (rawKey === '-' || virtualKey === '-') {
             let msg = activeRoom.currentText; if(activeRoom.workingChar) msg += "、" + activeRoom.workingChar;
@@ -488,8 +555,13 @@
             if (targetChar && dakutenMap[targetChar]) {
                 const newChar = dakutenMap[targetChar];
                 if (isWorking) activeRoom.workingChar = newChar; else activeRoom.currentText = activeRoom.currentText.slice(0, -1) + newChar;
-                speak(newChar); updateDisplay();
-            } else { speak("濁点がつけられません"); } return;
+                speak(newChar); 
+                playSound('input');
+                updateDisplay();
+            } else { 
+                speak("濁点がつけられません"); 
+                playSound('error');
+            } return;
         }
         if (kanaTable[virtualKey]) {
             if (lastKey !== virtualKey && lastKey !== 'dakuten') { commitChar(); }
@@ -497,18 +569,22 @@
             if (lastKey === virtualKey) { clickCount++; } else { clickCount = 0; }
             const chars = kanaTable[virtualKey];
             activeRoom.workingChar = chars[clickCount % chars.length];
-            speak(activeRoom.workingChar); lastKey = virtualKey; updateDisplay();
+            speak(activeRoom.workingChar); 
+            playSound('input'); 
+            lastKey = virtualKey; updateDisplay();
         }
     }
 
     document.addEventListener('keydown', (event) => {
         const rawKey = event.key;
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
         if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(rawKey)) { event.preventDefault(); }
         handleInput(rawKey, false);
     });
     
     const startOverlay = document.getElementById('start-overlay');
     startOverlay.addEventListener('click', () => { 
+        initAudio();
         speak("準備完了。" + activeRoom.reading + "、です。"); 
         startOverlay.style.display = 'none'; 
         init(); 

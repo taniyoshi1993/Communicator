@@ -3,7 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Communicator v6.5</title>
+    
+    <!-- ★追加: iOSでの全画面表示設定 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Communicator">
+    
+    <title>Communicator v6.6</title>
     <style>
         /* --- 基本設定 --- */
         body {
@@ -11,6 +17,8 @@
             background-color: #7297b8;
             margin: 0;
             padding: 0;
+            /* iOSでのバウンススクロール防止 */
+            overscroll-behavior: none;
             touch-action: manipulation; 
             user-select: none;
             height: 100vh;
@@ -26,7 +34,17 @@
         body.theme-test { background-color: #fff9c4; }   
 
         /* --- タブエリア --- */
-        #tabs { display: flex; background-color: #e0e0e0; padding: 10px 5px 0 5px; height: 50px; flex-shrink: 0; overflow-x: auto; }
+        #tabs { 
+            display: flex; 
+            background-color: #e0e0e0; 
+            padding: 10px 5px 0 5px; 
+            /* ステータスバーの高さ分を考慮して少し余白を空ける */
+            padding-top: max(10px, env(safe-area-inset-top));
+            height: 50px; 
+            flex-shrink: 0; 
+            overflow-x: auto; 
+            box-sizing: content-box; /* paddingを含めない高さ計算 */
+        }
         .tab { 
             flex: 1; 
             min-width: 60px; 
@@ -153,7 +171,7 @@
             <div class="key-cell span-h" data-key="0"><span class="phy-num">0</span><span class="func-name">わ行・長音符</span><span class="func-sub">わ を ん ー</span></div>
             <div class="key-cell action" data-key="."><span class="phy-num">.</span><span class="func-name">゛　゜</span><span class="func-sub">濁点・半濁点</span></div>
         </div>
-        <div id="version-label">v6.5</div>
+        <div id="version-label">v6.6</div>
     </div>
 
 <script>
@@ -198,8 +216,9 @@
     const keyMap = { '7': '1', 'Home': '1', '8': '2', 'ArrowUp': '2', '9': '3', 'PageUp': '3', '4': '4', 'ArrowLeft': '4', '5': '5', 'Clear': 'NumLock', '6': '6', 'ArrowRight': '6', '1': '7', 'End': '7', '2': '8', 'ArrowDown': '8', '3': '9', 'PageDown': '9', '0': '0', 'Insert': '0', '.': 'dakuten', 'Delete': 'dakuten' };
 
     let lastKey = null; let clickCount = 0; let synthesis = window.speechSynthesis;
-    let audioCtx = null;
 
+    // オーディオの初期化
+    let audioCtx = null;
     function initAudio() {
         try {
             if (!audioCtx) {
@@ -208,12 +227,13 @@
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume();
             }
+            // 無音を再生してエンジンをウォームアップ
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.connect(gain);
             gain.connect(audioCtx.destination);
             osc.frequency.value = 440; 
-            gain.gain.value = 0.0001; // 無音
+            gain.gain.value = 0.0001; 
             osc.start(0);
             osc.stop(0.1);
         } catch(e) { console.error("Audio Init Failed:", e); }
@@ -224,32 +244,9 @@
         fetchHistory(true);
     }
 
-    // 効果音 (シンプル版)
     function playSound(type) {
-        if (!audioCtx) return;
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume().catch(e => console.error(e));
-        }
-
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        const now = audioCtx.currentTime;
-        
-        if (type === 'input') { 
-            osc.type = 'sine'; osc.frequency.setValueAtTime(880, now); gain.gain.setValueAtTime(0.1, now);
-            osc.start(now); osc.stop(now + 0.05);
-        } else if (type === 'delete') { 
-            osc.type = 'triangle'; osc.frequency.setValueAtTime(220, now); gain.gain.setValueAtTime(0.1, now);
-            osc.start(now); osc.stop(now + 0.05);
-        } else if (type === 'success') { 
-            osc.type = 'sine'; osc.frequency.setValueAtTime(660, now); osc.frequency.linearRampToValueAtTime(1320, now + 0.15);
-            gain.gain.setValueAtTime(0.1, now); osc.start(now); osc.stop(now + 0.3);
-        } else if (type === 'error') { 
-            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); gain.gain.setValueAtTime(0.1, now);
-            osc.start(now); osc.stop(now + 0.15);
-        }
+        /* iPad仕様で不安定なため、今回は操作音は一旦無効化（読み上げのみ）としています */
+        /* 安定させる場合はここにごく単純なビープ音のみ実装します */
     }
 
     function setupCheckModeBtn() {
@@ -272,9 +269,6 @@
                 const keyVal = keyEl.getAttribute('data-key');
                 if(keyVal) handleInput(keyVal, true);
             });
-            keyEl.addEventListener('touchstart', () => {
-                if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-            }, {passive: true});
         });
     }
 
@@ -295,10 +289,12 @@
 
     function switchRoom(roomId) {
         saveToStorage(); activeRoomId = roomId; activeRoom = roomsData.find(r => r.id === roomId);
+        
         document.body.classList.remove('theme-normal', 'theme-board', 'theme-test');
         if(roomId === 'room_board') document.body.classList.add('theme-board');
         else if(roomId === 'room_test') document.body.classList.add('theme-test');
         else document.body.classList.add('theme-normal');
+
         renderTabs(); updateDisplay(); renderHistory(); lastKey = null; clickCount = 0;
         speak(activeRoom.reading + "、です");
     }
@@ -313,6 +309,7 @@
 
     function updateDisplay() {
         const displayDiv = document.getElementById('display');
+        
         if (!activeRoom.currentText && !activeRoom.workingChar) { 
             displayDiv.textContent = "（" + activeRoom.name + "：入力待ち）"; 
             displayDiv.style.color = activeRoomId==='room_board' ? '#999' : '#ccc'; 
@@ -347,13 +344,10 @@
                 const cssClass = isSelf ? 'self' : 'other';
                 div.className = `history-item ${cssClass}`;
                 
-                // ★修正：履歴タップ時の読み上げ
                 div.onclick = () => {
                     if(!isSelf) {
-                        // 相手の場合
                         speak(item.sender + "さんからメッセージです。" + item.text);
                     } else {
-                        // 自分の場合
                         speak(item.text);
                     }
                 };
@@ -365,8 +359,11 @@
                     div.appendChild(spanSender);
                 }
 
-                const spanText = document.createElement('span'); spanText.textContent = item.text;
-                const spanTime = document.createElement('span'); spanTime.className = 'history-time'; spanTime.textContent = item.time;
+                const spanText = document.createElement('span'); 
+                spanText.textContent = item.text;
+                const spanTime = document.createElement('span'); 
+                spanTime.className = 'history-time'; 
+                spanTime.textContent = item.time;
                 div.appendChild(spanText); div.appendChild(spanTime); area.appendChild(div);
             });
         }
@@ -398,7 +395,6 @@
                 const hist = json.history;
                 
                 activeRoom.history = hist.map(h => {
-                    // GAS側で名前変換済みのデータが来るのでそのまま使用
                     const dateObj = new Date(h.time);
                     const timeStr = dateObj.getHours() + ":" + String(dateObj.getMinutes()).padStart(2, '0');
                     const dateStr = dateObj.getFullYear() + "年" + (dateObj.getMonth()+1) + "月" + dateObj.getDate() + "日";
@@ -429,18 +425,17 @@
                     if(h.sender === "博之") {
                         readText += h.text + "。。"; 
                     } else {
-                        // ★修正：一括読み上げ時の文言
                         readText += h.sender + "さんからメッセージです。" + h.text + "。。"; 
                     }
                 });
                 speak(readText);
-                playSound('success'); 
+                
             } else {
-                if(!isSilent) { speak("受信できませんでした"); playSound('error'); }
+                if(!isSilent) speak("受信できませんでした");
             }
         } catch (e) {
             console.error(e);
-            if(!isSilent) { speak("通信エラーです"); playSound('error'); }
+            if(!isSilent) speak("通信エラーです");
         }
     }
 
@@ -481,9 +476,7 @@
 
         if (rawKey === 'NumLock' || virtualKey === 'NumLock') {
             activeRoom.currentText = ""; activeRoom.workingChar = ""; lastKey = null; clickCount = 0;
-            speak("入力欄をリセットしました"); 
-            playSound('delete');
-            updateDisplay(); return;
+            speak("入力欄をリセットしました"); updateDisplay(); return;
         }
 
         if (rawKey === 'Enter' || virtualKey === 'Enter') {
@@ -497,50 +490,26 @@
                 
                 if(activeRoomId !== 'room_board') {
                     speak(text + "。を送信しました");
-                    playSound('success'); 
                     activeRoom.history.push({ text: text, time: timeStr, date: dateStr, sender: senderName });
                     if(activeRoomId !== 'room_test') sendToLine(text, isTouch);
                     activeRoom.currentText = "";
                     renderHistory(); 
                 } else {
                     speak(text + "、を表示しました");
-                    playSound('success');
                 }
                 updateDisplay();
-            } else { 
-                speak("入力欄が空です"); 
-                playSound('error');
-            }
+            } else { speak("入力欄が空です"); }
             return;
         }
         if (rawKey === '*' || virtualKey === '*') { fetchHistory(); return; }
         if (rawKey === '+' || virtualKey === '+') {
-            if (activeRoom.workingChar) { 
-                commitChar(); 
-                speak("現在の文字を確定しました"); 
-                playSound('success'); 
-                updateDisplay(); 
-            }
-            else { 
-                speak("未確定の文字はありません"); 
-                playSound('error');
-            } return;
+            if (activeRoom.workingChar) { commitChar(); speak("現在の文字を確定しました"); updateDisplay(); }
+            else { speak("未確定の文字はありません"); } return;
         }
         if (rawKey === '/' || virtualKey === '/') {
-            if (activeRoom.workingChar) { 
-                activeRoom.workingChar = ""; 
-                speak("１文字消去しました"); 
-                playSound('delete');
-            }
-            else if (activeRoom.currentText.length > 0) { 
-                activeRoom.currentText = activeRoom.currentText.slice(0, -1); 
-                speak("１文字消去しました"); 
-                playSound('delete');
-            }
-            else { 
-                speak("入力欄が空です"); 
-                playSound('error');
-            } clickCount = 0; lastKey = null; updateDisplay(); return;
+            if (activeRoom.workingChar) { activeRoom.workingChar = ""; speak("１文字消去しました"); }
+            else if (activeRoom.currentText.length > 0) { activeRoom.currentText = activeRoom.currentText.slice(0, -1); speak("１文字消去しました"); }
+            else { speak("入力欄が空です"); } clickCount = 0; lastKey = null; updateDisplay(); return;
         }
         if (rawKey === '-' || virtualKey === '-') {
             let msg = activeRoom.currentText; if(activeRoom.workingChar) msg += "、" + activeRoom.workingChar;
@@ -555,13 +524,8 @@
             if (targetChar && dakutenMap[targetChar]) {
                 const newChar = dakutenMap[targetChar];
                 if (isWorking) activeRoom.workingChar = newChar; else activeRoom.currentText = activeRoom.currentText.slice(0, -1) + newChar;
-                speak(newChar); 
-                playSound('input');
-                updateDisplay();
-            } else { 
-                speak("濁点がつけられません"); 
-                playSound('error');
-            } return;
+                speak(newChar); updateDisplay();
+            } else { speak("濁点がつけられません"); } return;
         }
         if (kanaTable[virtualKey]) {
             if (lastKey !== virtualKey && lastKey !== 'dakuten') { commitChar(); }
@@ -569,15 +533,12 @@
             if (lastKey === virtualKey) { clickCount++; } else { clickCount = 0; }
             const chars = kanaTable[virtualKey];
             activeRoom.workingChar = chars[clickCount % chars.length];
-            speak(activeRoom.workingChar); 
-            playSound('input'); 
-            lastKey = virtualKey; updateDisplay();
+            speak(activeRoom.workingChar); lastKey = virtualKey; updateDisplay();
         }
     }
 
     document.addEventListener('keydown', (event) => {
         const rawKey = event.key;
-        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
         if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(rawKey)) { event.preventDefault(); }
         handleInput(rawKey, false);
     });

@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Communicator">
 
-    <title>Communicator v7.1</title>
+    <title>Communicator v7.2</title>
     <style>
         /* --- 基本設定 --- */
         body {
@@ -173,7 +173,7 @@
             <div class="key-cell span-h" data-key="0"><span class="phy-num">0</span><span class="func-name">わ行・長音符</span><span class="func-sub">わ を ん ー</span></div>
             <div class="key-cell action" data-key="."><span class="phy-num">.</span><span class="func-name">゛　゜</span><span class="func-sub">濁点・半濁点</span></div>
         </div>
-        <div id="version-label">v7.1</div>
+        <div id="version-label">v7.2</div>
     </div>
 
 <script>
@@ -404,14 +404,11 @@
                 if (isSilent) return;
 
                 let readText = "";
-                if(hasNew) readText += "新着メッセージがあります。";
+                if(hasNew) readText += "新着メッセージがあります。　";
                 
                 activeRoom.history.forEach(h => { 
-                    if(h.sender === "博之") {
-                        readText += h.text + "。。"; 
-                    } else {
-                        readText += h.sender + "さんからメッセージです。" + h.text + "。。"; 
-                    }
+                    // ★修正：全員「〇〇さんのメッセージです。」形式に統一し、間隔を空ける
+                    readText += h.sender + "さんのメッセージです。" + h.text + "。　　"; 
                 });
                 speak(readText);
             } else {

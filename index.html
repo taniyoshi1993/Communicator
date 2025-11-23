@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Communicator">
 
-    <title>Communicator v8.0</title>
+    <title>Communicator v8.1</title>
     <style>
         /* --- 基本設定 --- */
         body {
@@ -67,7 +67,7 @@
         
         /* オフラインモード時の表示調整 */
         body.theme-offline #display::after {
-            content: "※オフライン（送信されません）";
+            content: "※オフライン（LINE通知なし・記録のみ）"; /* 表示文言変更 */
             position: absolute; bottom: 5px; right: 10px;
             font-size: 12px; color: #999;
         }
@@ -154,7 +154,7 @@
             <div class="key-cell span-h" data-key="0"><span class="phy-num">0</span><span class="func-name">わ行・長音符</span><span class="func-sub">わ を ん ー</span></div>
             <div class="key-cell action" data-key="."><span class="phy-num">.</span><span class="func-name">゛　゜</span><span class="func-sub">濁点・半濁点</span></div>
         </div>
-        <div id="version-label">v8.0</div>
+        <div id="version-label">v8.1</div>
     </div>
 
 <script>
@@ -194,10 +194,31 @@
     const keyMap = { '7': '1', 'Home': '1', '8': '2', 'ArrowUp': '2', '9': '3', 'PageUp': '3', '4': '4', 'ArrowLeft': '4', '5': '5', 'Clear': 'NumLock', '6': '6', 'ArrowRight': '6', '1': '7', 'End': '7', '2': '8', 'ArrowDown': '8', '3': '9', 'PageDown': '9', '0': '0', 'Insert': '0', '.': 'dakuten', 'Delete': 'dakuten' };
 
     let lastKey = null; let clickCount = 0; let synthesis = window.speechSynthesis;
+    let audioCtx = null;
+
+    function initAudio() {
+        try {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.value = 440; 
+            gain.gain.value = 0.0001; 
+            osc.start(0);
+            osc.stop(0.1);
+        } catch(e) { console.error("Audio Init Failed:", e); }
+    }
 
     function init() {
         loadFromStorage(); renderTabs(); updateDisplay(); renderHistory(); setupTouchKeys(); setupCheckModeBtn();
-        if(activeRoomId === 'room_online') fetchHistory(true);
+        // どの部屋でも起動時に履歴取得（オフラインでも自分のメモが戻る）
+        fetchHistory(true);
     }
 
     function setupCheckModeBtn() {
@@ -220,6 +241,9 @@
                 const keyVal = keyEl.getAttribute('data-key');
                 if(keyVal) handleInput(keyVal, true);
             });
+            keyEl.addEventListener('touchstart', () => {
+                if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            }, {passive: true});
         });
     }
 
@@ -246,16 +270,21 @@
 
         renderTabs(); updateDisplay(); renderHistory(); lastKey = null; clickCount = 0;
         speak(activeRoom.reading + "、です");
+        
+        // 部屋切り替え時にも最新ログを取得
+        fetchHistory(true);
     }
 
     function speak(text) {
         if(!synthesis) return;
         synthesis.cancel();
         const utter = new SpeechSynthesisUtterance(text);
+        
         const voices = synthesis.getVoices();
         const kyoko = voices.find(v => v.name.includes("Kyoko") || v.name.includes("京子"));
         if(kyoko) utter.voice = kyoko;
         else utter.lang = 'ja-JP'; 
+        
         utter.rate = VOICE_RATE; 
         utter.pitch = VOICE_PITCH;
         synthesis.speak(utter);
@@ -317,10 +346,11 @@
         area.scrollTop = area.scrollHeight;
     }
     
+    // ★修正: 部屋IDに関わらずGASへ送信（GAS側でオンラインのみLINE通知する）
     async function sendToLine(text, isTouch) {
-        if (activeRoomId === 'room_offline') return;
         const senderName = isTouch ? "アプリ" : "博之";
-        const roomName = activeRoom.name;
+        // 部屋名（オンライン or オフライン）を送信
+        const roomName = activeRoom.name; 
         try {
             await fetch(GAS_API_URL, {
                 method: 'POST', mode: 'no-cors',
@@ -332,14 +362,10 @@
 
     async function fetchHistory(isSilent = false) {
         try {
-            if (activeRoomId === 'room_offline') {
-                if(!isSilent) speak("オフラインモードです");
-                return;
-            }
-
             if(!isSilent) speak("受信を確認しています");
             
-            const urlWithParams = GAS_API_URL + "?room=オンライン"; // 常にオンライン部屋のログ取得
+            // ★修正: 現在の部屋（オンライン or オフライン）のログを取得
+            const urlWithParams = GAS_API_URL + "?room=" + encodeURIComponent(activeRoom.name);
             
             const res = await fetch(urlWithParams);
             const json = await res.json();
@@ -443,18 +469,18 @@
                 
                 if(activeRoomId === 'room_online') {
                     speak(text + "。を送信しました");
-                    activeRoom.history.push({ text: text, time: timeStr, date: dateStr, sender: senderName });
-                    sendToLine(text, isTouch);
-                    activeRoom.currentText = "";
-                    renderHistory(); 
                 } else {
-                    // オフライン
-                    speak(text + "、を表示しました");
-                    // 履歴には残すが送信はしない
-                    activeRoom.history.push({ text: text, time: timeStr, date: dateStr, sender: senderName });
-                    activeRoom.currentText = "";
-                    renderHistory();
+                    speak(text + "、を保存しました"); // オフライン用の文言
                 }
+                
+                // 履歴に追加（送信処理はバックグラウンドで）
+                activeRoom.history.push({ text: text, time: timeStr, date: dateStr, sender: senderName });
+                
+                // ★修正: どの部屋でもGASへ送る（通知するかどうかはGASが決める）
+                sendToLine(text, isTouch);
+                
+                activeRoom.currentText = "";
+                renderHistory();
                 updateDisplay();
             } else { speak("入力欄が空です"); }
             return;
@@ -469,7 +495,7 @@
             else if (activeRoom.currentText.length > 0) { activeRoom.currentText = activeRoom.currentText.slice(0, -1); speak("１文字消去しました"); }
             else { speak("入力欄が空です"); } clickCount = 0; lastKey = null; updateDisplay(); return;
         }
-        if (rawKey === '-' || virtualKey === '-') {
+        if (rawKey === '-') {
             let msg = activeRoom.currentText; if(activeRoom.workingChar) msg += "、" + activeRoom.workingChar;
             if(!msg) msg = "入力欄が空です"; speak(msg); return;
         }
@@ -497,12 +523,18 @@
 
     document.addEventListener('keydown', (event) => {
         const rawKey = event.key;
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
         if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(rawKey)) { event.preventDefault(); }
         handleInput(rawKey, false);
     });
     
     const startOverlay = document.getElementById('start-overlay');
     startOverlay.addEventListener('click', () => { 
+        try {
+            initAudio();
+        } catch(e) {
+            console.error(e);
+        }
         speak("準備完了。" + activeRoom.reading + "、です。"); 
         startOverlay.style.display = 'none'; 
         init(); 

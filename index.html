@@ -3,7 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Communicator v7.0</title>
+    
+    <!-- ★復活: iOSでの全画面表示設定 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Communicator">
+
+    <title>Communicator v7.1</title>
     <style>
         /* --- 基本設定 --- */
         body {
@@ -11,6 +17,8 @@
             background-color: #7297b8;
             margin: 0;
             padding: 0;
+            /* iOSでのバウンススクロール防止 */
+            overscroll-behavior: none;
             touch-action: manipulation; 
             user-select: none;
             height: 100vh;
@@ -30,6 +38,7 @@
             display: flex; 
             background-color: #e0e0e0; 
             padding: 10px 5px 0 5px; 
+            /* ステータスバー考慮 */
             padding-top: max(10px, env(safe-area-inset-top));
             height: 50px; 
             flex-shrink: 0; 
@@ -38,10 +47,10 @@
         }
         .tab { 
             flex: 1; 
-            min-width: 80px; /* 少し広めに */
+            min-width: 80px; 
             text-align: center; 
             padding: 12px 2px; 
-            font-size: 18px; /* 文字大きく */
+            font-size: 18px;
             font-weight: bold; 
             color: #666; 
             background-color: #ccc; 
@@ -164,7 +173,7 @@
             <div class="key-cell span-h" data-key="0"><span class="phy-num">0</span><span class="func-name">わ行・長音符</span><span class="func-sub">わ を ん ー</span></div>
             <div class="key-cell action" data-key="."><span class="phy-num">.</span><span class="func-name">゛　゜</span><span class="func-sub">濁点・半濁点</span></div>
         </div>
-        <div id="version-label">v7.0</div>
+        <div id="version-label">v7.1</div>
     </div>
 
 <script>
@@ -362,7 +371,6 @@
         try {
             if(!isSilent) speak("受信を確認しています");
             
-            // 部屋に関わらず「メイン」のログを取得
             const urlWithParams = GAS_API_URL + "?room=メイン";
             
             const res = await fetch(urlWithParams);
@@ -370,9 +378,7 @@
             if(json.status === 'success' && json.history) {
                 const hist = json.history;
                 
-                // データを適用
-                // どの部屋にいても「メイン」の会話ログを表示・再生する
-                // （筆談モードを除く）
+                // データを適用 (筆談モード以外)
                 if (activeRoomId !== 'room_board') {
                     activeRoom.history = hist.map(h => {
                         const dateObj = new Date(h.time);
@@ -400,7 +406,6 @@
                 let readText = "";
                 if(hasNew) readText += "新着メッセージがあります。";
                 
-                // 読み上げ対象も「メイン」の履歴
                 activeRoom.history.forEach(h => { 
                     if(h.sender === "博之") {
                         readText += h.text + "。。"; 

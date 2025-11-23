@@ -3,13 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    
-    <!-- ★復活: iOSでの全画面表示設定 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Communicator">
 
-    <title>Communicator v7.2</title>
+    <title>Communicator v8.0</title>
     <style>
         /* --- 基本設定 --- */
         body {
@@ -17,7 +15,6 @@
             background-color: #7297b8;
             margin: 0;
             padding: 0;
-            /* iOSでのバウンススクロール防止 */
             overscroll-behavior: none;
             touch-action: manipulation; 
             user-select: none;
@@ -28,17 +25,15 @@
             transition: background-color 0.3s;
         }
         
-        /* 部屋ごとのテーマカラー */
-        body.theme-normal { background-color: #7297b8; } 
-        body.theme-board { background-color: #ffffff; }  
-        body.theme-test { background-color: #fff9c4; }   
+        /* テーマカラー */
+        body.theme-online { background-color: #7297b8; } 
+        body.theme-offline { background-color: #fff9c4; }   
 
-        /* --- タブエリア --- */
+        /* タブエリア */
         #tabs { 
             display: flex; 
             background-color: #e0e0e0; 
             padding: 10px 5px 0 5px; 
-            /* ステータスバー考慮 */
             padding-top: max(10px, env(safe-area-inset-top));
             height: 50px; 
             flex-shrink: 0; 
@@ -47,10 +42,10 @@
         }
         .tab { 
             flex: 1; 
-            min-width: 80px; 
+            min-width: 100px; 
             text-align: center; 
             padding: 12px 2px; 
-            font-size: 18px;
+            font-size: 20px;
             font-weight: bold; 
             color: #666; 
             background-color: #ccc; 
@@ -64,26 +59,15 @@
         }
         .tab.active { background-color: #fff; color: #007BFF; box-shadow: 0 -2px 5px rgba(0,0,0,0.1); z-index: 1; }
         
-        .tab.tab-board.active { background-color: #fff; color: #333; border-top: 4px solid #333; }
-        .tab.tab-test.active { background-color: #fff9c4; color: #d4a017; border-top: 4px solid #d4a017; }
+        /* オフラインタブのアクティブ時 */
+        .tab.tab-offline.active { background-color: #fff9c4; color: #d4a017; border-top: 4px solid #d4a017; }
 
-        /* --- メインエリア --- */
+        /* メインエリア */
         #main-container { flex: 1; display: flex; flex-direction: column; padding: 10px 20px; background: transparent; overflow: hidden; position: relative; }
         
-        /* 筆談モード時 */
-        body.theme-board #history-area, body.theme-board #key-guide { display: none; }
-        body.theme-board #display { 
-            height: auto; flex: 1; 
-            background-color: #fff; color: #000; 
-            border: none; font-size: 15vw; 
-            align-items: flex-start; padding-top: 50px;
-            line-height: 1.2;
-            box-shadow: none;
-        }
-
-        /* テストモード時 */
-        body.theme-test #display::after {
-            content: "※テストモード（送信されません）";
+        /* オフラインモード時の表示調整 */
+        body.theme-offline #display::after {
+            content: "※オフライン（送信されません）";
             position: absolute; bottom: 5px; right: 10px;
             font-size: 12px; color: #999;
         }
@@ -111,7 +95,7 @@
             border-bottom: 3px dotted #aaa;
         }
 
-        /* --- キーガイドエリア --- */
+        /* キーガイド */
         #key-guide { height: auto; background-color: #2c3e50; padding: 15px 10px; flex-shrink: 0; display: flex; justify-content: center; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
         .tenkey-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%; max-width: 700px; }
         .key-cell { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; position: relative; min-height: 55px; cursor: pointer; transition: background-color 0.1s, transform 0.1s; user-select: none; }
@@ -129,9 +113,7 @@
         #check-mode-btn { position: absolute; bottom: 130px; right: 10px; background-color: #666; color: white; border: 2px solid #fff; padding: 6px 12px; border-radius: 20px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.3); cursor: pointer; z-index: 100; font-size: 12px; }
         #check-mode-btn.active { background-color: #ff4444; border-color: #ffcccc; animation: pulse 2s infinite; }
         
-        /* バージョン表示 */
         #version-label { position: absolute; bottom: 5px; right: 5px; color: rgba(255,255,255,0.3); font-size: 10px; }
-
         #start-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 123, 255, 0.95); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; cursor: pointer; }
     </style>
 </head>
@@ -148,7 +130,6 @@
         <div id="history-area">
             <div style="color:#eee; text-align:center; margin-top:auto;">履歴がここに表示されます</div>
         </div>
-        <!-- 受信ボタン削除 -->
         <div id="check-mode-btn">キー確認：OFF</div>
         <div id="display">（入力待ち）</div>
     </div>
@@ -173,7 +154,7 @@
             <div class="key-cell span-h" data-key="0"><span class="phy-num">0</span><span class="func-name">わ行・長音符</span><span class="func-sub">わ を ん ー</span></div>
             <div class="key-cell action" data-key="."><span class="phy-num">.</span><span class="func-name">゛　゜</span><span class="func-sub">濁点・半濁点</span></div>
         </div>
-        <div id="version-label">v7.2</div>
+        <div id="version-label">v8.0</div>
     </div>
 
 <script>
@@ -185,48 +166,38 @@
     const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwhGDLHpVdOcUtc-Wm8TULRL0_667aFLOi1ILN7DR_AhcBimUFCQSQhYGAGyjWrfNIFzw/exec";
 
     // ==========================================
-    // データ定義 (シンプル3部屋構成)
+    // データ定義 (2ルーム構成)
     // ==========================================
     const roomsData = [
-        { id: 'room_main', name: 'メイン', reading: 'メイン', history: [], currentText: '', workingChar: '' },
-        { id: 'room_board', name: '筆談', reading: 'ひつだん', history: [], currentText: '', workingChar: '' },
-        { id: 'room_test', name: 'テスト', reading: 'てすと', history: [], currentText: '', workingChar: '' },
+        { id: 'room_online', name: 'オンライン', reading: 'おんらいん', history: [], currentText: '', workingChar: '' },
+        { id: 'room_offline', name: 'オフライン', reading: 'おふらいん', history: [], currentText: '', workingChar: '' },
     ];
     
-    let activeRoomId = 'room_main';
+    let activeRoomId = 'room_online';
     let activeRoom = roomsData[0];
     let isKeyCheckMode = false;
     let lastFetchedTime = 0;
 
-    const kanaTable = { '1': ['あ','い','う','え','お'], '2': ['か','き','く','け','こ'], '3': ['さ','し','す','せ','そ'], '4': ['た','ち','つ','て','と'], '5': ['な','に','ぬ','ね','の'], '6': ['は','ひ','ふ','へ','ほ'], '7': ['ま','み','む','め','も'], '8': ['や','ゆ','よ'], '9': ['ら','り','る','れ','ろ'], '0': ['わ','を','ん','ー'] };
+    const kanaTable = { 
+        '1': ['あ','い','う','え','お'], 
+        '2': ['か','き','く','け','こ'], 
+        '3': ['さ','し','す','せ','そ'], 
+        '4': ['た','ち','つ','て','と'], 
+        '5': ['な','に','ぬ','ね','の'], 
+        '6': ['は','ひ','ふ','へ','ほ'], 
+        '7': ['ま','み','む','め','も'], 
+        '8': ['や','ゆ','よ'], 
+        '9': ['ら','り','る','れ','ろ'], 
+        '0': ['わ','を','ん','ー'] 
+    };
     const dakutenMap = { 'か':'が', 'き':'ぎ', 'く':'ぐ', 'け':'げ', 'こ':'ご', 'が':'か', 'ぎ':'き', 'ぐ':'く', 'げ':'け', 'ご':'こ', 'さ':'ざ', 'し':'じ', 'す':'ず', 'せ':'ぜ', 'そ':'ぞ', 'ざ':'さ', 'じ':'し', 'ず':'す', 'ぜ':'せ', 'ぞ':'そ', 'た':'だ', 'ち':'ぢ', 'つ':'づ', 'て':'で', 'と':'ど', 'だ':'た', 'ぢ':'ち', 'づ':'つ', 'で':'て', 'ど':'と', 'は':'ば', 'ひ':'び', 'ふ':'ぶ', 'へ':'べ', 'ほ':'ぼ', 'ば':'ぱ', 'び':'ぴ', 'ぶ':'ぷ', 'べ':'ぺ', 'ぼ':'ぽ', 'ぱ':'は', 'ぴ':'ひ', 'ぷ':'ふ', 'ぺ':'へ', 'ぽ':'ほ', 'う':'ヴ', 'ヴ':'う' };
     const keyMap = { '7': '1', 'Home': '1', '8': '2', 'ArrowUp': '2', '9': '3', 'PageUp': '3', '4': '4', 'ArrowLeft': '4', '5': '5', 'Clear': 'NumLock', '6': '6', 'ArrowRight': '6', '1': '7', 'End': '7', '2': '8', 'ArrowDown': '8', '3': '9', 'PageDown': '9', '0': '0', 'Insert': '0', '.': 'dakuten', 'Delete': 'dakuten' };
 
     let lastKey = null; let clickCount = 0; let synthesis = window.speechSynthesis;
-    let audioCtx = null;
-
-    function initAudio() {
-        try {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.frequency.value = 440; 
-            gain.gain.value = 0.0001; 
-            osc.start(0);
-            osc.stop(0.1);
-        } catch(e) { console.error("Audio Init Failed:", e); }
-    }
 
     function init() {
         loadFromStorage(); renderTabs(); updateDisplay(); renderHistory(); setupTouchKeys(); setupCheckModeBtn();
-        fetchHistory(true);
+        if(activeRoomId === 'room_online') fetchHistory(true);
     }
 
     function setupCheckModeBtn() {
@@ -249,9 +220,6 @@
                 const keyVal = keyEl.getAttribute('data-key');
                 if(keyVal) handleInput(keyVal, true);
             });
-            keyEl.addEventListener('touchstart', () => {
-                if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-            }, {passive: true});
         });
     }
 
@@ -261,8 +229,7 @@
         roomsData.forEach(room => {
             const tabEl = document.createElement('div');
             tabEl.className = `tab ${room.id === activeRoomId ? 'active' : ''}`;
-            if(room.id === 'room_board') tabEl.classList.add('board-mode');
-            if(room.id === 'room_test') tabEl.classList.add('tab-test');
+            if(room.id === 'room_offline') tabEl.classList.add('tab-offline');
             
             tabEl.textContent = room.name;
             tabEl.onclick = () => switchRoom(room.id);
@@ -272,10 +239,10 @@
 
     function switchRoom(roomId) {
         saveToStorage(); activeRoomId = roomId; activeRoom = roomsData.find(r => r.id === roomId);
-        document.body.classList.remove('theme-normal', 'theme-board', 'theme-test');
-        if(roomId === 'room_board') document.body.classList.add('theme-board');
-        else if(roomId === 'room_test') document.body.classList.add('theme-test');
-        else document.body.classList.add('theme-normal');
+        
+        document.body.classList.remove('theme-online', 'theme-offline');
+        if(roomId === 'room_offline') document.body.classList.add('theme-offline');
+        else document.body.classList.add('theme-online');
 
         renderTabs(); updateDisplay(); renderHistory(); lastKey = null; clickCount = 0;
         speak(activeRoom.reading + "、です");
@@ -285,12 +252,10 @@
         if(!synthesis) return;
         synthesis.cancel();
         const utter = new SpeechSynthesisUtterance(text);
-        
         const voices = synthesis.getVoices();
         const kyoko = voices.find(v => v.name.includes("Kyoko") || v.name.includes("京子"));
         if(kyoko) utter.voice = kyoko;
         else utter.lang = 'ja-JP'; 
-        
         utter.rate = VOICE_RATE; 
         utter.pitch = VOICE_PITCH;
         synthesis.speak(utter);
@@ -300,7 +265,7 @@
         const displayDiv = document.getElementById('display');
         if (!activeRoom.currentText && !activeRoom.workingChar) { 
             displayDiv.textContent = "（" + activeRoom.name + "：入力待ち）"; 
-            displayDiv.style.color = activeRoomId==='room_board' ? '#999' : '#ccc'; 
+            displayDiv.style.color = '#ccc'; 
         } else { 
             let html = activeRoom.currentText; 
             if (activeRoom.workingChar) {
@@ -313,7 +278,6 @@
     }
 
     function renderHistory() {
-        if(activeRoomId === 'room_board') return;
         const area = document.getElementById('history-area');
         area.innerHTML = '';
         let lastDate = null;
@@ -333,11 +297,10 @@
                 div.className = `history-item ${cssClass}`;
                 
                 div.onclick = () => {
-                    if(!isSelf) {
-                        speak(item.sender + "さんからメッセージです。" + item.text);
-                    } else {
-                        speak(item.text);
-                    }
+                    let senderName = item.sender;
+                    if(senderName.includes("正輝")) senderName = senderName.replace(/正輝/g, "まさき");
+                    if(!isSelf) speak(senderName + "さんからメッセージです。" + item.text);
+                    else speak(item.text);
                 };
                 
                 if(!isSelf) {
@@ -355,7 +318,7 @@
     }
     
     async function sendToLine(text, isTouch) {
-        if (activeRoomId === 'room_board' || activeRoomId === 'room_test') return;
+        if (activeRoomId === 'room_offline') return;
         const senderName = isTouch ? "アプリ" : "博之";
         const roomName = activeRoom.name;
         try {
@@ -369,25 +332,26 @@
 
     async function fetchHistory(isSilent = false) {
         try {
+            if (activeRoomId === 'room_offline') {
+                if(!isSilent) speak("オフラインモードです");
+                return;
+            }
+
             if(!isSilent) speak("受信を確認しています");
             
-            const urlWithParams = GAS_API_URL + "?room=メイン";
+            const urlWithParams = GAS_API_URL + "?room=オンライン"; // 常にオンライン部屋のログ取得
             
             const res = await fetch(urlWithParams);
             const json = await res.json();
             if(json.status === 'success' && json.history) {
                 const hist = json.history;
                 
-                // データを適用 (筆談モード以外)
-                if (activeRoomId !== 'room_board') {
-                    activeRoom.history = hist.map(h => {
-                        const dateObj = new Date(h.time);
-                        const timeStr = dateObj.getHours() + ":" + String(dateObj.getMinutes()).padStart(2, '0');
-                        const dateStr = dateObj.getFullYear() + "年" + (dateObj.getMonth()+1) + "月" + dateObj.getDate() + "日";
-                        return { text: h.text, time: timeStr, date: dateStr, sender: h.sender };
-                    });
-                    renderHistory();
-                }
+                activeRoom.history = hist.map(h => {
+                    const dateObj = new Date(h.time);
+                    const timeStr = dateObj.getHours() + ":" + String(dateObj.getMinutes()).padStart(2, '0');
+                    const dateStr = dateObj.getFullYear() + "年" + (dateObj.getMonth()+1) + "月" + dateObj.getDate() + "日";
+                    return { text: h.text, time: timeStr, date: dateStr, sender: h.sender };
+                });
                 
                 let hasNew = false;
                 let latestTime = lastFetchedTime;
@@ -401,14 +365,22 @@
                 lastFetchedTime = latestTime;
                 localStorage.setItem('comm_last_fetch_time', lastFetchedTime);
 
+                renderHistory();
+
                 if (isSilent) return;
 
                 let readText = "";
                 if(hasNew) readText += "新着メッセージがあります。　";
                 
                 activeRoom.history.forEach(h => { 
-                    // ★修正：全員「〇〇さんのメッセージです。」形式に統一し、間隔を空ける
-                    readText += h.sender + "さんのメッセージです。" + h.text + "。　　"; 
+                    let senderName = h.sender;
+                    if(senderName.includes("正輝")) senderName = senderName.replace(/正輝/g, "まさき");
+                    
+                    if(h.sender === "博之") {
+                        readText += "博之さんのメッセージです。" + h.text + "。　　"; 
+                    } else {
+                        readText += senderName + "さんからメッセージです。" + h.text + "。　　"; 
+                    }
                 });
                 speak(readText);
             } else {
@@ -426,9 +398,9 @@
             clickCount = 0; lastKey = null; saveToStorage();
         }
     }
-    function saveToStorage() { localStorage.setItem('comm_data_v7', JSON.stringify(roomsData)); localStorage.setItem('comm_room_v7', activeRoomId); }
+    function saveToStorage() { localStorage.setItem('comm_data_v8', JSON.stringify(roomsData)); localStorage.setItem('comm_room_v8', activeRoomId); }
     function loadFromStorage() {
-        const savedData = localStorage.getItem('comm_data_v7'); const savedRoom = localStorage.getItem('comm_room_v7');
+        const savedData = localStorage.getItem('comm_data_v8'); const savedRoom = localStorage.getItem('comm_room_v8');
         const savedTime = localStorage.getItem('comm_last_fetch_time');
         if(savedTime) lastFetchedTime = parseInt(savedTime);
         if (savedData) { try { const parsed = JSON.parse(savedData); parsed.forEach(pRoom => { const target = roomsData.find(r => r.id === pRoom.id); if(target) { target.history = pRoom.history || []; target.currentText = pRoom.currentText || ''; } }); } catch(e) {} }
@@ -469,14 +441,19 @@
                 const dateStr = now.getFullYear() + "年" + (now.getMonth()+1) + "月" + now.getDate() + "日";
                 const senderName = isTouch ? "アプリ" : "博之";
                 
-                if(activeRoomId !== 'room_board') {
+                if(activeRoomId === 'room_online') {
                     speak(text + "。を送信しました");
                     activeRoom.history.push({ text: text, time: timeStr, date: dateStr, sender: senderName });
-                    if(activeRoomId !== 'room_test') sendToLine(text, isTouch);
+                    sendToLine(text, isTouch);
                     activeRoom.currentText = "";
                     renderHistory(); 
                 } else {
+                    // オフライン
                     speak(text + "、を表示しました");
+                    // 履歴には残すが送信はしない
+                    activeRoom.history.push({ text: text, time: timeStr, date: dateStr, sender: senderName });
+                    activeRoom.currentText = "";
+                    renderHistory();
                 }
                 updateDisplay();
             } else { speak("入力欄が空です"); }
@@ -520,18 +497,12 @@
 
     document.addEventListener('keydown', (event) => {
         const rawKey = event.key;
-        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
         if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(rawKey)) { event.preventDefault(); }
         handleInput(rawKey, false);
     });
     
     const startOverlay = document.getElementById('start-overlay');
     startOverlay.addEventListener('click', () => { 
-        try {
-            initAudio();
-        } catch(e) {
-            console.error(e);
-        }
         speak("準備完了。" + activeRoom.reading + "、です。"); 
         startOverlay.style.display = 'none'; 
         init(); 
